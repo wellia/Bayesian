@@ -1,0 +1,543 @@
+##################################
+# Student Name: Wellia Lioeng
+# Student Id: 220093302
+# SIT 743 - Bayesian Assignment 2
+##################################
+
+# Q 1.4.a
+
+```{r}
+# draw network
+
+# install.packages ("igraph")
+library (igraph)
+# install.packages ("ggm")
+library (ggm )
+
+dag <- DAG(S ~ E, J ~ E+G, M ~ S+A, D ~ M)
+plotGraph (dag , nodesize =20 , tcltk =FALSE , vc=" white ")
+
+# test Marriage is conditionally independent of job type, given the salary and Age
+dSep (dag , first ="M", second ="J", cond =c("S","A")) 
+
+```
+
+# Q 1.5)
+
+```{r}
+dag <- DAG(S ~ E, J ~ E+G, M ~ S+A+J, D ~ M)
+plotGraph (dag , nodesize =20 , tcltk =FALSE , vc=" white ")
+
+# Q 1.5.a test D ⊥ G | {S, J}
+dSep (dag , first ="D", second ="G", cond =c("S","J")) 
+
+# Q 1.5.b test {E,G} ⊥ A {D,J}
+dSep (dag , first = c("E","G"), second ="A", cond =c("D","J"))
+```
+# Q 1.6, Q 1.8 ) 
+
+```{r}
+library ( bnlearn )
+models = "[E][A][G][J|E:G][S|E][M|S:J:A][D|M]"
+res2 = model2network(models)
+plot ( res2 )
+
+# Markov blanket
+mb(res2 , "E")
+
+# 1.6 plot the markov blanket of E in the network, the answer is D, test separation in the next code
+graphviz.plot (res2 , highlight = list ( nodes = mb(res2 , "E"), col = "blue", fill = " green "))
+# test separation
+dsep(res2, "D", "E", "M")
+
+# 1.8.a - the markov blanket of J in the network
+graphviz.plot (res2 , highlight = list ( nodes = mb(res2 , "J"), col = "blue", fill = " orange "))
+
+# 1.8.b - the markov blanket of S in the network
+graphviz.plot (res2 , highlight = list ( nodes = mb(res2 , "S"), col = "blue", fill = " red "))
+
+
+
+```
+
+# Q 1.7) 
+
+```{r}
+dag <- DAG(S ~ E, J ~ E+G, M ~ S+A+J, D ~ M)
+plotGraph (dag , nodesize =20 , tcltk =FALSE , vc=" white ")
+
+# 1.7.a E ⊥ {A, G} | {S,M}
+print("E ⊥ {A, G} | {S,M}")
+dSep (dag , first ="E", second = c("A", "G"), cond =c("S","M")) 
+
+# 1.7.b {S, A} ⊥ G | {E, J,D}
+print("{S, A} ⊥ G | {E, J,D}")
+dSep (dag , first =c("S","A"), second = c("G"), cond =c("E","J","D")) 
+```
+
+# Q 2)
+
+```{r}
+library(Rgraphviz)
+library(RBGL)
+library(gRbase)
+library(gRain)
+
+ch <- c("cold","hot")
+lmh <- c("low", "medium", "high")
+lh <- c("low", "high")
+
+#P(H=low)=0.4
+h <- cptable(~humidity, values=c(0.4,0.6),levels=lh) 
+
+#P(W=low|H=low)=0.2, P(W=medium|H=low)=0.3, P(W=high|H=low)=0.5
+#P(W=low|H=high)=0.6, P(W=medium|H=high)=0.2, P(W=high|H=high)=0.2
+# wind      humidity     prob
+#============================
+# low       low          0.2
+# medium    low          0.3
+# high      low          0.5
+# low       high         0.6
+# medium    high         0.2
+# high      high         0.2
+w.h <- cptable(~wind|humidity, values=c(0.2,0.3,0.5,0.6,0.2,0.2),levels=lmh)  
+
+#P(T=cold|H=low)=0.9, P(T=cold|H=high) = 0.2
+t.h <- cptable(~temp|humidity, values=c(0.9,0.1,0.2,0.8), levels=ch)
+
+# solar temp  prob
+#-------------------
+# low   cold  0.1
+# med   cold  0.3
+# high  cold  0.6
+# low   hot   0.3
+# med   hot   0.3
+# high  hot   0.4
+s.t <- cptable(~solar|temp, values=c(0.1,0.3,0.6,0.3,0.3,0.4), levels=lmh)
+
+# Precip  Temp  Humidity   Prob
+#------------------------------
+# low     cold  low      = 0.3
+# high    cold  low      = 0.7 (1-0.3)
+# low     hot  low       = 0.1
+# high    hot  low       = 0.9 (1-0.9)
+# low     cold  high     = 0.3 (1-0.7)
+# high    cold  high     = 0.7
+# low     hot  high      = 0.2 (1-0.8)
+# high    hot  high      = 0.8
+r.th <- cptable(~precip|temp:humidity, values=c(0.3,0.7,0.1,0.9,0.3,0.7,0.2,0.8), levels=lh)
+
+
+#Compile list of conditional probability tables and create the network:
+plist <- compileCPT(list(h,w.h,t.h,s.t,r.th))
+plist
+
+net1 <- grain(plist)
+summary(net1)
+
+# 2.1.a 
+#plot DAG
+plot(net1$dag)
+
+# 2.1.b gives marginal probability of all nodes
+getgrain(net1, "cpt")$humidity
+getgrain(net1, "cpt")$wind
+getgrain(net1, "cpt")$temp
+getgrain(net1, "cpt")$solar
+getgrain(net1, "cpt")$precip
+
+
+# 2.2.a P(humidity=high|temp=cold)
+net1WithEvidence <- setEvidence(net1,nodes=c("temp"), states=c("cold"))
+querygrain(net1WithEvidence, nodes=c("humidity"))
+
+# 2.2.b P(temp,humidity,precip)
+querygrain(net1,nodes=c("temp","humidity","precip"), type="joint")
+
+# 2.2.c P(solar=high|wind=medium, precipitation=high)
+net1WithEvidence <- setEvidence(net1,nodes=c("wind", "precip"), states=c("medium", "high"))
+querygrain(net1WithEvidence, nodes=c("solar"))
+
+# 2.2.d P(precipitation)
+querygrain(net1, nodes=c("precip"), type="marginal")
+
+#2.e) P(rain=high | temperature=cold, humidity=high)
+net1WithEvidence <- setEvidence(net1,nodes=c("temp", "humidity"), states=c("cold", "high"))
+querygrain(net1WithEvidence, nodes=c("precip"))
+
+#2.f) P(rain=high | temperature=cold, humidity=high, solar=low)
+net1WithEvidence <- setEvidence(net1,nodes=c("temp", "humidity", "solar"), states=c("cold", "high", "low"))
+querygrain(net1WithEvidence, nodes=c("precip"))
+
+#2.g) P(rain=high | temperature=cold, humidity=high, wind=medium)
+net1WithEvidence <- setEvidence(net1,nodes=c("temp", "humidity", "wind"), states=c("cold", "high", "medium"))
+querygrain(net1WithEvidence, nodes=c("precip"))
+
+
+```
+# Q 3)
+
+```{r}
+# create data
+a <- rep(1, 20)
+a[c(2,7,9,13,14,15,18,20)] <- 0
+a <- as.character(a) 
+
+
+b <- rep(1, 20)
+b[17] <- 0
+b <- as.character(b) 
+
+c <- rep(1, 20)
+c[c(1,15,19)] <- 0
+c <- as.character(c) 
+
+d <- rep(1, 20)
+d[c(1,10,13,15,17,19)] <- 0
+d <- as.character(d) 
+
+e <- rep(1, 20)
+e[c(11,15,16)] <- 0
+e <- as.character(e) 
+
+```
+
+
+```{r}
+library ( bnlearn )
+library(gRain)
+
+# create the bayesian network
+net = model2network ("[A][B][C|A][D|C:B][E|D]")
+plot (net )
+# enter the discrete data (in data frame )
+data <- data.frame ("A" = a, "B" = b, "C" = c, "D" = d, "E" = e)
+#fit the data using maximum liklihood
+fit = bn.fit(net , data , method = "mle")
+fit
+
+cpquery ( fit , event =(C=="1"), evidence = ((A=="0") & (B=="0") & (D=="1") & (E=="0")))
+
+```
+# Q.4)
+
+```{r}
+library(bnlearn)
+data(alarm) #20000 rows
+head(alarm)
+
+#create and plot the true network structure.
+modelstring = paste0("[HIST|LVF][CVP|LVV][PCWP|LVV][HYP][LVV|HYP:LVF][LVF]",
+"[STKV|HYP:LVF][ERLO][HRBP|ERLO:HR][HREK|ERCA:HR][ERCA][HRSA|ERCA:HR][ANES]",
+"[APL][TPR|APL][ECO2|ACO2:VLNG][KINK][MINV|INT:VLNG][FIO2][PVS|FIO2:VALV]",
+"[SAO2|PVS:SHNT][PAP|PMB][PMB][SHNT|INT:PMB][INT][PRSS|INT:KINK:VTUB][DISC]",
+"[MVS][VMCH|MVS][VTUB|DISC:VMCH][VLNG|INT:KINK:VTUB][VALV|INT:VLNG]",
+"[ACO2|VALV][CCHL|ACO2:ANES:SAO2:TPR][HR|CCHL][CO|HR:STKV][BP|CO:TPR]")
+dag = model2network(modelstring)
+par(mfrow = c(1,1))
+
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("Rgraphviz")
+graphviz.plot(dag)
+
+
+```
+```{r}
+alarm100 <- head(alarm, n=100)
+alarm1000 <- head(alarm, n=1000)
+alarm15000 <- head(alarm, n=15000)
+
+netHc100 = hc(alarm100) # default is BIC
+graphviz.plot(netHc100)
+netHc100
+scoreBic100 <- score(netHc100, alarm100, type="bic")
+cat('BIC score with 100 samples:', scoreBic100)
+
+netHc1000 = hc(alarm1000)
+graphviz.plot(netHc1000)
+netHc1000
+scoreBic1000 <- score(netHc1000, alarm1000, type="bic")
+cat('BIC score with 1000 samples:', scoreBic1000)
+
+netHc15000 = hc(alarm15000)
+graphviz.plot(netHc15000)
+netHc15000
+scoreBic15000<- score(netHc15000, alarm15000, type="bic")
+cat('BIC score with 15000 samples:', scoreBic15000)
+
+netHcBde100 = hc(alarm100, score="bde")
+graphviz.plot(netHcBde100)
+netHcBde100
+scoreBde100 <- score(netHcBde100, alarm100, type="bde")
+cat('BDe score with 100 samples:', scoreBde100)
+
+netHcBde1000 = hc(alarm1000, score="bde")
+graphviz.plot(netHcBde1000)
+netHcBde1000
+scoreBde1000 <- score(netHcBde1000, alarm1000, type="bde")
+cat('BDe score with 1000 samples:', scoreBde1000)
+
+netHcBde15000 = hc(alarm15000, score="bde")
+graphviz.plot(netHcBde15000)
+netHcBde15000
+scoreBde15000 <- score(netHcBde15000, alarm15000, type="bde")
+cat('BDe score with 15000 samples:', scoreBde15000)
+```
+
+# 4.3.a) 
+
+```{r}
+# All data
+netHc = hc(alarm)
+graphviz.plot(netHc)
+netHc
+scoreBic<- score(netHc, alarm, type="bic")
+cat('BIC score with all data:', scoreBic)
+
+netHcBde = hc(alarm, score="bde")
+graphviz.plot(netHcBde)
+netHcBde
+scoreBde <- score(netHcBde, alarm, type="bde")
+cat('BDe score with all data:', scoreBde)
+
+```
+# 4.3.b) 
+
+```{r}
+# fn, the number of arcs present in target, not present in current
+# fp, the number of arcs present in current not present in target
+
+# Compare bic structure with true network structure
+all.equal(dag,netHc)
+bnlearn::compare(target=dag, current=netHc, arcs = TRUE)
+graphviz.compare(dag, netHc)
+
+```
+```{r}
+# Compare bde structure with true network structure
+all.equal(dag,netHcBde)
+bnlearn::compare(target = dag, current = netHcBde, arcs = TRUE)
+graphviz.compare(dag, netHcBde)
+```
+
+# 4.c) 
+
+```{r}
+fit = bn.fit(netHc, alarm)
+fit$ECO2
+
+```
+# 4.d)
+
+P(BP="HIGH" | STKV ="LOW", HR ="NORMAL", SAO2="NORMAL")
+
+```{r}
+cpquery (fit , event =(BP=="HIGH"), evidence = ((STKV=="LOW") & (HR=="NORMAL") & (SAO2=="NORMAL")))
+```
+
+# 5 b) **********************************************************************************************
+
+
+# Section 1 - Preprocessing data
+
+```{r}
+#install.packages('mice')
+#install.packages('tidyverse')
+
+library(mice)
+library(tidyverse)
+
+# Only run this section if you want to rerun the preprocessing
+# otherwise, the experiment code starts from the second section
+
+rerun_preprocess_data = FALSE # set to TRUE if you want to rerun the preprocessing
+
+add_pollutant_data <- function() {
+  default_file_name <- '_pollutant.csv'
+  
+  for (i in 1:10) {
+    
+    y <- 2009 + i
+    
+    file_name <- paste0(as.character(y), default_file_name)
+    pollutant_data <- read.csv(file_name)
+    names(pollutant_data)<- c('param_id', 'PV') #replace column name
+    by_pollutant <- pollutant_data %>%
+      group_by(param_id) %>%
+      summarise(total_PV = mean(PV))
+    #print(by_pollutant)
+  
+    co <- by_pollutant %>% filter(param_id == 'CO') %>% select(total_PV)
+    no2 <- by_pollutant %>% filter(param_id == 'NO2') %>% select(total_PV)
+    o3 <- by_pollutant %>% filter(param_id == 'O3') %>% select(total_PV)
+    pm10 <- by_pollutant %>% filter(param_id == 'PM10') %>% select(total_PV)
+    ppm25 <- by_pollutant %>% filter(param_id == 'PPM2.5') %>% select(total_PV)
+    so2 <- by_pollutant %>% filter(param_id == 'SO2') %>% select(total_PV)
+  
+    df[i,'CO'] <- round(co, 2)
+    df[i,'NO2'] <- round(no2, 2)
+    df[i,'O3'] <- round(o3, 2)
+    df[i,'PM10'] <- round(pm10, 2)
+    df[i,'PPM2.5'] <- round(ppm25, 2)
+    df[i,'SO2'] <- round(so2, 2)
+  }
+  df
+}
+
+if (rerun_preprocess_data) {
+  
+  df <- read.csv('original.csv')
+  names(df)[1] <- 'Year'
+  df$Year <- as.factor(df$Year)
+  
+  # fill missing heatwaves values
+  imputed_data <- mice(df, m = 1)
+  df <- complete(imputed_data,1)
+  
+  df <- add_pollutant_data()
+  df
+  
+  # write to a file
+  write.csv(df, "source.csv", row.names = FALSE)
+  
+} 
+```
+
+# Section 2 - Load data for experiment
+
+```{r}
+
+df <- read.csv('source.csv')
+df$Year <- as.factor(df$Year)
+
+df
+```
+`
+# EDA
+
+```{r}
+# The rule of air quality is based on this source url:
+# https://www.epa.vic.gov.au/for-community/monitoring-your-environment/about-epa-airwatch/calculate-air-quality-categories
+
+get_colour_co <- function(co) {
+    case_when(
+      co < 30 ~ "darkgreen",  #good
+      co >= 30 & co < 70 ~ "yellow", #poor
+      TRUE ~ "purple" #Extreme poor
+    )
+}
+
+get_colours <- function(x, limit_value) {
+    case_when(
+      no2 < limit_value[1] ~ "darkgreen",  #good
+      no2 >= limit_value[1] & no2 < limit_value[2] ~ "green",  #fair
+      no2 >= limit_value[2] & no2 < limit_value[3] ~ "yellow", #poor
+      no2 >= limit_value[3] & no2 <= limit_value[4] ~ "red", #verypoor
+      TRUE ~ "purple" #Extreme poor
+    )
+}
+
+df_selected <- df[10, ]
+
+data <- c(df_selected$CO, df_selected$NO2, df_selected$O3, df_selected$PM10, df_selected$PPM2.5, df_selected$SO2)
+
+co_col <- get_colour_co (df_selected$CO)
+no2_col <- get_colours (df_selected$NO2, c(60, 120, 180, 360))
+o3_col <- get_colours (df_selected$O3, c(50, 100, 150, 300))
+pm10_col <- get_colours (df_selected$PM10, c(40, 80, 120, 300))
+pm25_col <- get_colours (df_selected$PPM2.5, c(25, 50, 100, 300))
+so2_col <- get_colours (df_selected$SO2, c(100, 200, 300, 600))
+
+data_colours <- c(co_col, no2_col, o3_col, pm10_col, pm25_col, so2_col)
+labels <- c('CO', 'NO2', 'O3', 'PM10', 'PPM2.5', 'SO2')
+barplot(data, main="Air Quality in 2019", names.arg = labels, col=data_colours) 
+
+x_value = as.character(df$Year)
+plot(y=df$Totaldeath, x=x_value, type = "o",col = "red", xlab = "Year", ylab = "People", main = "Total deaths")
+plot(y=df$Death, x=x_value, type = "o",col = "red", xlab = "Year", ylab = "People", main = "Death caused by respiratory problems")
+
+```
+
+# Prepare data for Bayes Net
+
+```{r}
+# format columns to build bayesNet
+df$Bushfire <- as.factor(df$Bushfire)
+df$Death <- as.double((df$Death))
+
+drop_list <- c("Totaldeath")
+df <- df[ , !(names(df) %in% drop_list)]
+
+df
+```
+
+# Build Bayes Net
+
+
+```{r}
+#install.packages('bnlearn')
+library ( bnlearn )
+
+# divide data into train and test
+train_df = df[1:7, ]     # 2010 - 2016 data
+test_df = df[8:10, ]     # 2017 - 2019 data
+
+# initial structure
+models <- "[Year][Bushfire][Heatwaves][O3][CO|Bushfire][PPM2.5|Bushfire][PM10][SO2][NO2][Temp][Death][HW_temp][HW_dur][HW_freq]" 
+initialDag <- model2network(models)
+plot (initialDag)
+
+# black list
+bl = matrix (c("Death", "PPM2.5", 
+               "Death", "O3", 
+               "Death", "CO", 
+               "Death", "PM10", 
+               "Bushfire", "Temp", 
+               "Death", "Temp",
+               "Death", "Heatwaves",
+               "Death", "HW_freq",
+               "Death", "HW_dur",
+               "Death", "HW_temp",
+               "Death", "NO2",
+               "Death", "SO2"), ncol = 2, byrow = TRUE)
+
+# constrain-based
+netConstrain = gs(train_df, blacklist = bl)
+fitConstrain = bn.fit(netConstrain, train_df)
+graphviz.plot(netConstrain)
+
+# hybrid-based
+netHybrid = h2pc(train_df, blacklist = bl)
+fitHybrid = bn.fit(netHybrid, train_df)
+graphviz.plot(netHybrid)
+
+# score-based
+dag1 = hc(train_df, start=initialDag, blacklist = bl)
+fit1 = bn.fit(dag1, train_df)
+fit1
+graphviz.plot(dag1)
+
+dag2 = hc(train_df, start=initialDag, blacklist = bl, score = 'loglik-cg')
+fit2 = bn.fit(dag2, train_df)
+fit2
+graphviz.plot(dag2)
+
+```
+
+```{r}
+# queries
+# What probability of death more than 10.000 if CO level is more than 0.1
+cpquery(fit1, event = (Death > 15000), evidence = (CO > 0.1 ), n=1000000) # 0.05
+```
+
+```{r}
+# Prediction and evaluation
+
+#install.packages('forecast')
+library(forecast)
+
+pred = predict(fit1, "Death", test_df)  # predicts heatwaves for year 2017, 2018 and 2019
+cbind(pred, test_df[, "Death"])        # compare the actual and predicted
+accuracy(object = pred, x = test_df[, "Death"])
+```
+
